@@ -1,0 +1,30 @@
+{
+  "name": "@cboulanger/zotero-sync-bookends",
+  "version": "1.0.0",
+  "description": "Bookends store for @retorquere/zotero-sync",
+  "main": "src/index.ts",
+  "scripts": {
+    "test": "tsc && npx ts-node test.ts",
+    "tsc": "tsc -d",
+    "prepublishOnly": "npm install && npm run tsc",
+    "go": "npm run tsc && npm version patch && npm publish --access public",
+    "postversion": "git push --follow-tags"
+  },
+  "keywords": [
+    "zotero",
+    "zotero-sync"
+  ],
+  "author": "Christian Boulanger (@cboulanger) infoy@bibliograph.org",
+  "license": "ISC",
+  "dependencies": {
+    "@retorquere/zotero-sync": "^1.0.21",
+    "run-jxa": "^2.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^14.14.41",
+    "dotenv": "^8.2.0",
+    "gauge": "^2.7.4",
+    "ts-node": "^9.1.1",
+    "typescript": "^4.2.4"
+  }
+}

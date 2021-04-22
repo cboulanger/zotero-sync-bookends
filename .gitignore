@@ -1,0 +1,7 @@
+# Project exclude paths
+/node_modules/
+.env
+*.d.ts
+*.js
+!./src/typings
+!.env.dist
