@@ -1,19 +1,17 @@
 # Bookends Store for @retorquere/zotero-sync
 
-This is a store implementation for https://github.com/retorquere/zotero-sync
-which can do a one-way sync from Zotero to any backend that has an API.
-
-This implementation allows to backup Zotero libraries in Bookends, the MacOS
-reference manager from https://www.sonnysoftware.com/, using its  
-scripting support via JSX.   
+This is a store implementation for https://github.com/retorquere/zotero-sync, 
+which allows to export Zotero libraries into Bookends, a MacOS reference
+manager from https://www.sonnysoftware.com. Using Bookend's scripting support via
+JSX, Zotero data is added to or efficiently updated in a Bookends library.
 
 This implementation saves all accessible Zotero libraries in the specified
 Bookends library, which must be opened during sync. All Zotero library items are
-stored in a Bookends "group". Zotero collections, notes, and attachments are
-ignored for the moment.
+stored in a separate Bookends "group". Zotero collections, notes, and attachments are
+not (yet) synchronized.
 
 > Note: This is currently only a proof of concept, just a fragment of Zotero item data
-(title, year, authors) is translated into its Bookends equivalents. Adds only,
+(name, year, authors) is translated into its Bookends equivalents. Adds only,
 does not update or delete items.
 
 

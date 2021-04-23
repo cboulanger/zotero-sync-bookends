@@ -35,7 +35,12 @@ const Gauge = require('gauge');
 
     // error handling
     syncEngine.on(Sync.event.error, e => {
-        throw e;
+        gauge.hide();
+        console.error(`Error during task "${gauge._status.section.replace(/"/g,"'")}": ${e.message}`);
+        if (e.lastJxaCmd) {
+            console.error(`Last JXA command was: ${e.lastJxaCmd}`);
+        }
+        process.exit(1);
     });
 
     // synchronize with the couchbase store

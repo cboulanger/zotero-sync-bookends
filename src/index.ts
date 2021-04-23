@@ -1,6 +1,8 @@
 import runJxa from 'run-jxa';
 import type { Zotero } from "@retorquere/zotero-sync/typings/zotero"
 
+const { Translator, zoteroDictionary, bookendsDictionary } = require('./dictionaries/translator');
+
 export class Store implements Zotero.Store {
 
   public libraries : string[];
@@ -17,7 +19,7 @@ export class Store implements Zotero.Store {
    * @param user_or_group_prefix
    */
   public async remove(user_or_group_prefix: string): Promise<void> {
-
+    await (new Library(this, user_or_group_prefix)).delete();
     this.libraries = this.libraries.filter(prefix => prefix !== user_or_group_prefix);
   }
 
@@ -48,12 +50,13 @@ export class Library implements Zotero.Library {
   public version: number = 0;
 
   // internal config
-  private readonly user_or_group_prefix: string;
+  private readonly prefix: string;
   private readonly store: Store;
+  private groupName?: string;
 
   constructor(store: Store, user_or_group_prefix: string) {
     this.store = store;
-    this.name = this.user_or_group_prefix = user_or_group_prefix;
+    this.prefix = user_or_group_prefix;
   }
 
   /**
@@ -70,26 +73,90 @@ export class Library implements Zotero.Library {
    * @protected
    */
   protected async run(cmd:string, args: any[] = []) : Promise<any> {
-    return await runJxa(`
-      const bookends = Application("Bookends");
+    cmd = `const bookends = Application("Bookends");
       const libraryWindow = bookends.libraryWindows.byName("${this.store.fileName}");
-      ${cmd}
-    `, args);
+      ${cmd.trim()}`;
+    try {
+      return await runJxa(cmd, args);
+    } catch (e) {
+      e.lastJxaCmd = cmd;
+      throw e;
+    }
   }
 
   /**
-   * Initialize the library instance. This creates a Bookends group for all
-   * references.
+   * Initialize the library instance. This creates a Bookends group for all library items if it
+   * does not exist. The group name encodes library metadata in JSON format
    */
   public async init(): Promise<Library> {
-    try {
-      await this.run(`libraryWindow.groupItems.push(bookends.GroupItem({name:"${this.name}"}));`);
-    } catch (e) {
-      if (!e.stderr.includes("already exists")) {
-        throw e;
-      }
+    this.groupName = await this.findGroupNameByPrefix();
+    if (this.groupName) {
+      const {name, data} = this.parseGroupName(this.groupName);
+      this.name = name;
+      this.version = data.version;
+    } else {
+      this.groupName = this.generateGroupName("Synchronizing...");
+      await this.run(`libraryWindow.groupItems.push(bookends.GroupItem({name:\`${this.groupName}\`}));`);
     }
     return this;
+  }
+
+  /**
+   * Deletes the Bookends group containing the library items
+   */
+  public async delete() {
+    try {
+      await this.run(`bookends.delete(libraryWindows.groupItems.byName(\`${this.groupName}\`))`);
+    } catch (e) {
+      console.log(e.stderr);
+    }
+  }
+
+  /**
+   * Parse the metadata stored in a group name
+   * @protected
+   */
+  protected parseGroupName(groupName: string): {name: string, data: {version:number, prefix:string}} {
+    if (!groupName) {
+      throw new Error("Missing group name");
+    }
+    const pos = groupName.indexOf("{");
+    const name = pos > -1 ? groupName.slice(0,pos-1).trim() : groupName;
+    const data  = pos > -1 ? JSON.parse(groupName.slice(pos)) : {};
+    return {name , data};
+  }
+
+  /**
+   * Store metadata in the group name
+   * @param name
+   * @protected
+   */
+  protected generateGroupName(name: string): string {
+    const data = {
+      prefix: this.prefix,
+      version: this.version
+    };
+    return `${name.padEnd(20, " ")} ${JSON.stringify(data)}`;
+  }
+
+  /**
+   * Finds a group name by the Zotero library prefix in the contained metadata
+   * If found, return the name of the group, otherwise return undefined
+   * @param prefix
+   * @protected
+   */
+  protected async findGroupNameByPrefix(prefix?:string) : Promise<string|undefined> {
+    prefix = prefix || this.prefix;
+    return await this.run(`
+      const gi = libraryWindow.groupItems;
+      for (let i=0; i < gi.length; i++) {
+        const name = gi.at(i).name();
+        if (name.includes("${prefix}")) {
+          return name;
+        }
+      }
+      return undefined;
+    `);
   }
 
   /**
@@ -100,22 +167,12 @@ export class Library implements Zotero.Library {
     // do nothing
   }
 
-
   /**
    * Removes a Zotero collection object
    * @param {string[]} keys
    */
   public async remove_collections(keys: string[]): Promise<void> {
     // do nothing
-  }
-
-  /**
-   * Takes a Zotero `creators` field and translates it to a Bookends `authors` field
-   * @param creators
-   * @protected
-   */
-  protected translateCreatorsToAuthors(creators:any[] ) {
-    return creators.map( creator => creator.name || `${creator.lastName}, ${creator.firstName}` ).join("\n");
   }
 
   /**
@@ -126,23 +183,37 @@ export class Library implements Zotero.Library {
    * @protected
    */
   protected generateCitekey(item: Zotero.Item.Any) : string {
-    return `zotero:${this.user_or_group_prefix}/items/${item.key}`;
+    return `https://api.zotero.org${this.prefix}/items/${item.key}`;
   }
 
-
   /**
-   * Returns true if an item has already been added (as identified by its citekey), false if not
+   * Translates a zotero item to data that can be imported into bookends
+   * @param item
    * @param citekey
    * @protected
    */
-  protected async itemExists(citekey: string) : Promise<boolean> {
-    return await this.run(`
-      return bookends.sqlSearch("user1 REGEX '${citekey}'", {in: libraryWindow}).length > 0;
-    `);
+  protected zoteroToBookends(item: Zotero.Item.Any | any, citekey: string): object {
+    const data = Translator.translate(item, zoteroDictionary, bookendsDictionary);
+    data.citekey = citekey;
+    return data;
   }
 
   /**
-   * Adds a Zotero item object
+   * Returns the id of the item with the given citeky, or undefined if none such item exists
+   * @param citekey
+   * @protected
+   */
+  public async getIdByCitekey(citekey: string) : Promise<string|undefined> {
+    return await this.run(`
+      const items = bookends.sqlSearch("user1 REGEX '${citekey}'", {in: libraryWindow});
+      if (items.length) {
+        return items[0].id()
+      }
+      return undefined;`);
+  }
+
+  /**
+   * Adds or updates a Zotero item object
    * @param {Zotero.Item.Any} item
    */
   public async add(item: Zotero.Item.Any | any): Promise<void> {
@@ -151,28 +222,25 @@ export class Library implements Zotero.Library {
       case "attachment":
       case "note":
         break;
-      default:
-        if (await this.itemExists(citekey)) {
-          return;
-        }
-        try {
-          const data = {
-            title: item.title,
-            publicationDateString: item.date,
-            authors: Array.isArray(item.creators) ? this.translateCreatorsToAuthors(item.creators) : "",
-            citekey
-          };
+      default: {
+        const id = await this.getIdByCitekey(citekey);
+        const data = this.zoteroToBookends(item, citekey);
+        if (id) {
           await this.run(`
-            const item = bookends.PublicationItem(${JSON.stringify(data)});
-            const group = libraryWindow.groupItems.byName("${this.name}");
-            libraryWindow.publicationItems.push(item);
-            bookends.add(item, {to:group});
-          `);
-        } catch (e) {
-          //if (!e.stderr.includes("already exists")) {
-          throw e;
-          //}
+          const item = libraryWindow.publicationItems.byId("${id}");
+          for (let [key, value] of Object.entries(args[0])) {
+            item.setProperty(key, value);
+          }
+        `, [data]);
+        } else {
+          await this.run(`
+          const item = bookends.PublicationItem(${JSON.stringify(data)});
+          const group = libraryWindow.groupItems.byName(\`${this.groupName}\`);
+          libraryWindow.publicationItems.push(item);
+          bookends.add(item, {to:group});
+        `);
         }
+      }
     }
   }
 
@@ -181,8 +249,7 @@ export class Library implements Zotero.Library {
    * @param {string[]} keys
    */
   public async remove(keys: string[]): Promise<void> {
-
-
+    // to do
   }
 
   /**
@@ -191,6 +258,12 @@ export class Library implements Zotero.Library {
    * @param {Number} version
    */
   public async save(name: string, version: number): Promise<void> {
-
+    this.name = name;
+    this.version = version;
+    const oldGroupName = await this.findGroupNameByPrefix();
+    this.groupName = this.generateGroupName(name);
+    await this.run(`
+      libraryWindow.groupItems.byName(\`${oldGroupName}\`)
+        .setProperty("name",\`${this.groupName}\`);`);
   }
 }
