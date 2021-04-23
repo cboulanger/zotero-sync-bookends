@@ -10,9 +10,8 @@ Bookends library, which must be opened during sync. All Zotero library items are
 stored in a separate Bookends "group". Zotero collections, notes, and attachments are
 not (yet) synchronized.
 
-> Note: This is currently only a proof of concept, just a fragment of Zotero item data
-(name, year, authors) is translated into its Bookends equivalents. Adds only,
-does not update or delete items.
+> Note: This is currently only a proof of concept, do not expect it to correctly or
+> completely transfer Zotero data to Bookends yet. 
 
 
 ## Usage
