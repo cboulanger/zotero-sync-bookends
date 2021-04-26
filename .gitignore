@@ -2,6 +2,6 @@
 /node_modules/
 .env
 *.d.ts
-*.js
-!./src/typings
+index.js
+test.js
 !.env.dist
