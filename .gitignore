@@ -1,7 +1,7 @@
 # Project exclude paths
 /node_modules/
 .env
-*.d.ts
+src/index.d.ts
 index.js
 test.js
 !.env.dist
