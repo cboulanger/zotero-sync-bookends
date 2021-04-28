@@ -19,8 +19,11 @@ cross-library lookup of reference items, which is not possible with Zotero curre
 ## Issues
 
  - Make sure not to modify a library on zotero.org during the initial synchronization
-   of large libraries, since synchronization will abort with a "last-modified-version changed 
-   ... retry later" error 
+   of large libraries, since otherwise synchronization will abort with a "last-modified-version changed 
+   ... retry later" error. 
+ - The implementation stores sync metadata such as the Zotero library version in the Bookends 
+   group names. This isn't a very robust solution but since there is no other place in Bookends 
+   for this kind of data, the best one I could come up with. 
 
 ## Testing
 
