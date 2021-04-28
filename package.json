@@ -12,12 +12,13 @@
   },
   "keywords": [
     "zotero",
-    "zotero-sync"
+    "zotero-sync",
+    "bookends"
   ],
   "author": "Christian Boulanger (@cboulanger) infoy@bibliograph.org",
   "license": "ISC",
   "dependencies": {
-    "@retorquere/zotero-sync": "^1.0.21",
+    "@retorquere/zotero-sync": "^1.0.23",
     "run-jxa": "^2.0.0"
   },
   "devDependencies": {
