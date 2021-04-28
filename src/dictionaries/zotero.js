@@ -131,7 +131,11 @@ const fields_toLocal = {
   applicationNumber: 'applicationNumber',
   blogTitle: 'blogTitle',
   bookTitle: 'bookTitle',
-  collections: false,
+  collections: {
+    default: () => [],
+    translateName: () => 'user19',
+    translateContent: data => data.join(",")
+  },
   conferenceName: 'conferenceName',
   callNumber: 'callNumber',
   date: 'date',

@@ -1,11 +1,15 @@
 import runJxa from 'run-jxa';
 import type { Zotero } from "@retorquere/zotero-sync/typings/zotero"
+const process = require('process');
 
 const { Translator, zoteroDictionary, bookendsDictionary } = require('./dictionaries/translator');
 
 export class Store implements Zotero.Store {
 
+  // interface properties
   public libraries : string[];
+
+  // public properties
   public fileName: string;
 
   constructor(fileName: string) {
@@ -38,8 +42,6 @@ export class Store implements Zotero.Store {
   }
 }
 
-
-
 /**
  * Implementation of a Zotero library object
  */
@@ -49,10 +51,15 @@ export class Library implements Zotero.Library {
   public name: string = "";
   public version: number = 0;
 
+  // public properties
+  public maxTries = 3; // how often to retry an OSA command if it times out
+
   // internal config
   private readonly prefix: string;
   private readonly store: Store;
   private groupName?: string;
+  private fastForwardTo : number = 0;
+  private lastIndex : number = 0;
 
   constructor(store: Store, user_or_group_prefix: string) {
     this.store = store;
@@ -90,13 +97,17 @@ export class Library implements Zotero.Library {
    */
   public async init(): Promise<Library> {
     this.groupName = await this.findGroupNameByPrefix();
+    this.lastIndex = 0;
     if (this.groupName) {
       const {name, data} = this.parseGroupName(this.groupName);
       this.name = name;
       this.version = data.version;
+      this.fastForwardTo = data.lastIndex || 0;
     } else {
       this.groupName = this.generateGroupName("Synchronizing...");
-      await this.run(`libraryWindow.groupItems.push(bookends.GroupItem({name:\`${this.groupName}\`}));`);
+      await this.run(`
+        const groupItem=bookends.GroupItem({name:\`${this.groupName}\`});
+        libraryWindow.groupItems.push(groupItem);`);
     }
     return this;
   }
@@ -116,7 +127,7 @@ export class Library implements Zotero.Library {
    * Parse the metadata stored in a group name
    * @protected
    */
-  protected parseGroupName(groupName: string): {name: string, data: {version:number, prefix:string}} {
+  protected parseGroupName(groupName: string): {name: string, data: {version:number, prefix:string, lastIndex:number }} {
     if (!groupName) {
       throw new Error("Missing group name");
     }
@@ -128,15 +139,17 @@ export class Library implements Zotero.Library {
 
   /**
    * Store metadata in the group name
-   * @param name
+   * @param {string?} name
    * @protected
    */
-  protected generateGroupName(name: string): string {
+  protected generateGroupName(name?: string): string {
     const data = {
       prefix: this.prefix,
-      version: this.version
+      version: this.version,
+      lastIndex: this.lastIndex
     };
-    return `${name.padEnd(20, " ")} ${JSON.stringify(data)}`;
+    name = name || this.name;
+    return `${name.padEnd(50, " ")} ${JSON.stringify(data)}`;
   }
 
   /**
@@ -192,22 +205,22 @@ export class Library implements Zotero.Library {
    * @param citekey
    * @protected
    */
-  protected zoteroToBookends(item: Zotero.Item.Any | any, citekey: string): object {
+  protected zoteroToBookends(item: Zotero.Item.Any | any, citekey: string): { [key: string] : string}  {
     const data = Translator.translate(item, zoteroDictionary, bookendsDictionary);
     data.citekey = citekey;
     return data;
   }
 
   /**
-   * Returns the id of the item with the given citeky, or undefined if none such item exists
+   * Returns the data of the item with the given citeky, or undefined if none such item exists
    * @param citekey
    * @protected
    */
-  public async getIdByCitekey(citekey: string) : Promise<string|undefined> {
+  public async getByCitekey(citekey: string) : Promise<any> {
     return await this.run(`
       const items = bookends.sqlSearch("user1 REGEX '${citekey}'", {in: libraryWindow});
       if (items.length) {
-        return items[0].id()
+        return items[0];
       }
       return undefined;`);
   }
@@ -217,28 +230,71 @@ export class Library implements Zotero.Library {
    * @param {Zotero.Item.Any} item
    */
   public async add(item: Zotero.Item.Any | any): Promise<void> {
+    // fast-forward in the case of a previous aborted sync
+    if (this.fastForwardTo > 0 && this.lastIndex < this.fastForwardTo) {
+      this.lastIndex++;
+      return;
+    }
     const citekey = this.generateCitekey(item);
     switch (item.itemType) {
       case "attachment":
       case "note":
         break;
       default: {
-        const id = await this.getIdByCitekey(citekey);
-        const data = this.zoteroToBookends(item, citekey);
-        if (id) {
-          await this.run(`
-          const item = libraryWindow.publicationItems.byId("${id}");
-          for (let [key, value] of Object.entries(args[0])) {
-            item.setProperty(key, value);
+        let tries = 0;
+        let error: null | string = null;
+        while(tries++ < this.maxTries) {
+          try {
+            const storedData = await this.getByCitekey(citekey);
+            const data = this.zoteroToBookends(item, citekey);
+            if (storedData) {
+              const changedProperties = Object.keys(storedData).filter( key => storedData[key] !== data[key]);
+              const changedData: {[key: string]: string} = {};
+              changedProperties.forEach(key => changedData[key] = data[key]);
+              if (changedProperties.length) {
+                console.log(changedData);
+                // update if item has changed
+                await this.run(`
+                  const item = libraryWindow.publicationItems.byId("${storedData.id}");
+                  for (let [key, value] of Object.entries(args[0])) {
+                    item.setProperty(key, value);
+                  }
+                `, [changedData]);
+              } else {
+                console.log("no change");
+              }
+            } else {
+              console.log("new");
+              await this.run(`
+                const item = bookends.PublicationItem(${JSON.stringify(data)});
+                libraryWindow.publicationItems.push(item);
+                const group = libraryWindow.groupItems.byName(\`${this.groupName}\`);
+                bookends.add(item, {to:group});
+              `);
+            }
+            // success!
+            error = null;
+            break; // break do-loop
+          } catch (e) {
+            if (e.message.includes("-1712")) {
+              // timeout, try again
+              error = e;
+              continue;
+            }
+            // try to save metadata, including last index, ignoring any errors
+            try {
+              await this.saveMetadata();
+            } catch (e) {}
+            throw e;
           }
-        `, [data]);
-        } else {
-          await this.run(`
-          const item = bookends.PublicationItem(${JSON.stringify(data)});
-          const group = libraryWindow.groupItems.byName(\`${this.groupName}\`);
-          libraryWindow.publicationItems.push(item);
-          bookends.add(item, {to:group});
-        `);
+        }
+        if (error) {
+          throw error;
+        }
+        this.lastIndex++;
+        // save metadata every 50 items so that this doesn't slow things down too much
+        if (this.lastIndex % 50 === 0) {
+          await this.saveMetadata();
         }
       }
     }
@@ -253,17 +309,26 @@ export class Library implements Zotero.Library {
   }
 
   /**
-   * Saves the Library
-   * @param {String?} name Descriptive Name of the library
+   * Saves the library metadata in the group name
+   * @protected
+   */
+  protected async saveMetadata() {
+    const oldGroupName = await this.findGroupNameByPrefix();
+    this.groupName = this.generateGroupName(this.name);
+    await this.run(`libraryWindow.groupItems.byName(\`${oldGroupName}\`).setProperty("name",\`${this.groupName}\`);`);
+  }
+
+  /**
+   * Saves the Library metadata at the end of the sync process
+   * @param {String} name Descriptive Name of the library
    * @param {Number} version
    */
   public async save(name: string, version: number): Promise<void> {
-    this.name = name;
+    if (name) {
+      this.name = name;
+    }
     this.version = version;
-    const oldGroupName = await this.findGroupNameByPrefix();
-    this.groupName = this.generateGroupName(name);
-    await this.run(`
-      libraryWindow.groupItems.byName(\`${oldGroupName}\`)
-        .setProperty("name",\`${this.groupName}\`);`);
+    this.lastIndex = 0;
+    await this.saveMetadata();
   }
 }

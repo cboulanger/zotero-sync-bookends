@@ -30,6 +30,7 @@ const Gauge = require('gauge');
         gauge.show(`Saving collection ${index}/${total}`, index/total);
     });
     syncEngine.on(Sync.event.item, (item: Zotero.Item.Any, index: number, total: number) => {
+
         gauge.show(`Saving item ${index}/${total}`, index/total);
     });
 
