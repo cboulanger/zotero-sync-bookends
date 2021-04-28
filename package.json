@@ -15,6 +15,16 @@
     "zotero-sync",
     "bookends"
   ],
+  "files": [
+    "README.md",
+    "src/index.js",
+    "src/index.d.ts",
+    "src/dictionaries/*",
+    "package.json",
+    "tsconfig.json",
+    "test.ts",
+    ".env.dist"
+  ],
   "author": "Christian Boulanger (@cboulanger) infoy@bibliograph.org",
   "license": "ISC",
   "dependencies": {
