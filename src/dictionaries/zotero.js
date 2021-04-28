@@ -133,8 +133,8 @@ const fields_toLocal = {
   bookTitle: 'bookTitle',
   collections: {
     default: () => [],
-    translateName: () => 'user19',
-    translateContent: data => data.join(",")
+    translateName: () => 'collections',
+    translateContent: data => data.split(",")
   },
   conferenceName: 'conferenceName',
   callNumber: 'callNumber',
@@ -354,6 +354,11 @@ const fields_toGlobal =
   },
   accessDate: 'accessDate',
   abstractNote: 'abstractNote',
+  collections: {
+    default: () => "",
+    translateName: () => 'collections',
+    translateContent: data => Array.isArray(data)? data.join(",") : ""
+  },
   creators: {
     translateName: function() {return false;}, // field name depends on content
     translateContent: function(data){

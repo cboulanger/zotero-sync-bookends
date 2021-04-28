@@ -124,7 +124,7 @@ const fields_toLocal =
   attachments: 'attachments',
   blogTitle: 'journal',
   bookTitle: 'volume',
-  collections: 'groups',
+  collections: 'user19',
   conferenceName: 'journal',
   callNumber: 'user5',
   date: 'publicationDateString',
@@ -401,7 +401,7 @@ const fields_toGlobal = {
   user14: false,
   user15: false, // used for last-sync-date
   user16: false,
-  user19: false,
+  user19: "collections",
   volume: {
     translateName: function (data) {
       return false;
