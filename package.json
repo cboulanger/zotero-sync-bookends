@@ -1,6 +1,6 @@
 {
   "name": "@cboulanger/zotero-sync-bookends",
-  "version": "1.0.1",
+  "version": "2.0.0",
   "description": "Bookends store for @retorquere/zotero-sync",
   "main": "src/index.ts",
   "scripts": {
