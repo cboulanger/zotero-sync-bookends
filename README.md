@@ -1,9 +1,9 @@
 # Bookends Store for @retorquere/zotero-sync
 
-This is a store implementation for https://github.com/retorquere/zotero-sync, 
-which allows to export Zotero libraries into Bookends, a MacOS reference
+This is a store implementation for https://github.com/retorquere/zotero-sync 
+that enables exporting/backing up Zotero libraries into Bookends, a MacOS reference
 manager from https://www.sonnysoftware.com. Using Bookend's scripting support via
-JSX, Zotero data is added to, or updated in a Bookends library.
+JavaScript for Automation (JSX), Zotero data is added to, or updated in a Bookends library.
 
 This implementation saves all Zotero libraries that are accessible to a given Zotero 
 API key in a Bookends library, which must be opened during sync. All Zotero library items are
@@ -12,8 +12,6 @@ not synchronized.
 
 The library allows, among other things, to use Bookends super-fast search to do a 
 cross-library lookup of reference items, which is not possible with Zotero currently.
-
-See [the test script](test.ts) for an example on how to integrate the library in your project.
 
 ## Issues
  - Access to Bookends via OSA/JXA is slow. It can take a couple of hours to synchronize large libraries.
@@ -44,6 +42,11 @@ You can restore the state before the crash like so:
 Then you can restart the synchronization. It will skip and update the previously synchronized libraries. For the others,
 it will "fast-forward" (sort of) to the not-yet-synchronized items if the "lastIndex" value has been preserved.
 
+## Installation
+
+To use the library in your projects, simply `npm install @cboulanger/zotero-sync-bookends`. See [the test script](test.ts) 
+for an example on how to use the API.
+
 ## Testing
 
 The test will actually work out-of-the-box to sync your data if you provide the needed environment variables.
@@ -53,10 +56,9 @@ git clone https://github.com/cboulanger/zotero-sync-bookends.git
 cd zotero-sync-bookends
 cp .env.dist ./.env
 # edit .env and provide the values needed there
+npm install
 npm test
 ```
-
-
 
 ## Resources
 - [JXA Release notes](https://developer.apple.com/library/archive/releasenotes/InterapplicationCommunication/RN-JavaScriptForAutomation/Articles/OSX10-10.html#//apple_ref/doc/uid/TP40014508-CH109-SW1)
