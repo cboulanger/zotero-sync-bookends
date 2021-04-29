@@ -17,21 +17,24 @@ const Gauge = require('gauge');
     const syncEngine = new Sync;
     await syncEngine.login(ZOTERO_API_KEY);
 
+    Store.verbose = true;
+
     // configure visual feedback
     const gauge = new Gauge;
+    let libraryName:string="";
     syncEngine.on(Sync.event.library, (library, index: number, total: number) => {
         let name = library.type === "group" ? library.name : "User library";
+        libraryName = name;
         gauge.show(`Saving library "${name}" (${index}/${total})`, index/total);
     });
     syncEngine.on(Sync.event.remove, (type: string, objects: string[]) => {
-        gauge.show(`Removing ${objects.length} ${type}`);
+        gauge.show(`"${libraryName.slice(0,20)}": Removing ${objects.length} ${type}`);
     });
     syncEngine.on(Sync.event.collection, (collection: Zotero.Collection, index: number, total: number) => {
-        gauge.show(`Saving collection ${index}/${total}`, index/total);
+        gauge.show(`"${libraryName.slice(0,20)}": Saving collection ${index}/${total}`, index/total);
     });
     syncEngine.on(Sync.event.item, (item: Zotero.Item.Any, index: number, total: number) => {
-
-        gauge.show(`Saving item ${index}/${total}`, index/total);
+        gauge.show(`"${libraryName.slice(0,20)}": Saving item ${index}/${total}`, index/total);
     });
 
     // error handling

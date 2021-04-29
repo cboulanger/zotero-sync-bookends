@@ -2,14 +2,16 @@ import runJxa from 'run-jxa';
 import type { Zotero } from "@retorquere/zotero-sync/typings/zotero"
 
 const { Translator, zoteroDictionary, bookendsDictionary } = require('./dictionaries/translator');
+const process = require('process');
 
 export class Store implements Zotero.Store {
 
-  // interface properties
+    // interface properties
   public libraries : string[];
 
   // public properties
   public fileName: string;
+  public static verbose: boolean = false; // set this to true if you want to have verbose output
 
   constructor(fileName: string) {
     this.fileName = fileName;
@@ -59,10 +61,26 @@ export class Library implements Zotero.Library {
   private groupName?: string;
   private fastForwardTo : number = 0;
   private lastIndex : number = 0;
+  private isNew: boolean = false;
+  private synchronizingMessage = "Synchronizing...";
 
   constructor(store: Store, user_or_group_prefix: string) {
     this.store = store;
     this.prefix = user_or_group_prefix;
+  }
+
+  /**
+   * Output additional information on the console if the environment variable
+   * ZOTERO_SYNC_DEBUG is set
+   * @param {string} msg
+   * @private
+   */
+  private debug(msg:string) {
+    if (Store.verbose) {
+      process.stdout.clearLine();
+      process.stdout.cursorTo(0);
+      console.log(msg);
+    }
   }
 
   /**
@@ -100,25 +118,19 @@ export class Library implements Zotero.Library {
     if (this.groupName) {
       const {name, data} = this.parseGroupName(this.groupName);
       this.name = name;
+      if (name === this.synchronizingMessage) {
+        // a case of an aborted initial sync
+        this.isNew = true;
+      }
       this.version = data.version;
       this.fastForwardTo = data.lastIndex || 0;
     } else {
-      this.name = "Synchronizing...";
+      this.isNew = true;
+      this.name = this.synchronizingMessage;
       this.groupName = this.generateGroupName();
       await this.addGroup(this.groupName);
     }
     return this;
-  }
-
-  /**
-   * Deletes the Bookends group containing the library items
-   */
-  public async delete() {
-    if (this.groupName) {
-      await this.deleteGroup(this.groupName);
-    } else {
-      throw new Error("Cannot delete Library - bookends group name has not been determined yet.");
-    }
   }
 
   /**
@@ -130,15 +142,6 @@ export class Library implements Zotero.Library {
   }
 
   /**
-   * Deletes a Bookends group
-   * @param groupName
-   * @protected
-   */
-  protected async deleteGroup(groupName:string) {
-    await this.run(`bookends.delete(libraryWindows.groupItems.byName(\`${groupName}\`))`);
-  }
-
-  /**
    * Renames a Bookends group
    * @param oldGroupName
    * @param newGroupName
@@ -146,6 +149,22 @@ export class Library implements Zotero.Library {
    */
   protected async renameGroup(oldGroupName: string, newGroupName: string) {
     await this.run(`libraryWindow.groupItems.byName(\`${oldGroupName}\`).setProperty("name",\`${newGroupName}\`);`);
+  }
+
+  /**
+   * Deletes a Bookends group
+   * @param groupName
+   * @protected
+   */
+  protected async removeGroup(groupName:string) {
+    try {
+      await this.run(`bookends.delete(libraryWindow.groupItems.byName(\`${groupName}\`))`);
+    } catch(e) {
+      if (e.message.includes("-1728")) {
+        throw new Error(`Cannot delete non-existing group item with name ${groupName}`);
+      }
+      throw e;
+    }
   }
 
   /**
@@ -198,6 +217,17 @@ export class Library implements Zotero.Library {
   }
 
   /**
+   * Removes the Bookends group containing the library items
+   */
+  public async delete() {
+    if (this.groupName) {
+      await this.removeGroup(this.groupName);
+    } else {
+      throw new Error("Cannot delete Library - bookends group name has not been determined yet.");
+    }
+  }
+
+  /**
    * Adds a Zotero collection object
    * @param {Zotero.Collection} collection
    */
@@ -220,7 +250,7 @@ export class Library implements Zotero.Library {
    * @param item
    * @protected
    */
-  protected generateCitekey(item: Zotero.Item.Any) : string {
+  protected generateCitekey(item: Zotero.Item.Any|{key:string}) : string {
     return `https://api.zotero.org${this.prefix}/items/${item.key}`;
   }
 
@@ -237,11 +267,11 @@ export class Library implements Zotero.Library {
   }
 
   /**
-   * Returns the data of the item with the given citeky, or undefined if none such item exists
+   * Returns the data of the publication item with the given citeky, or undefined if none such item exists
    * @param citekey
    * @protected
    */
-  protected async getItemByCitekey(citekey: string) : Promise<{[key:string]:string}|undefined> {
+  protected async getPublicationByCitekey(citekey: string) : Promise<{[key:string]:string}|undefined> {
     return await this.run(`
       const items = bookends.sqlSearch("user1 REGEX '${citekey}'", {in: libraryWindow});
       if (items.length) {
@@ -250,32 +280,14 @@ export class Library implements Zotero.Library {
       return undefined;`);
   }
 
-
   /**
-   * Updates a bookends reference item
-   * @param {number} id
-   * @param {object} data
-   * @protected
-   */
-  protected async updateItem(id: number, data: {[key:string]:string}) : Promise<void> {
-    console.log(`Updating item '${data.title}', properties ${Object.keys(data).join(",")}`);
-    await this.run(`
-      const item = libraryWindow.publicationItems.byId("${id}");
-      for (let [key, value] of Object.entries(args[0])) {
-        item.setProperty(key, value);
-      }
-    `, [data]);
-  }
-
-  /**
-   * Adds an item to the current library group
+   * Adds a publication item and links it to the current group
    * @param {object} data
    * @param {string?} groupName Optional name of the group, by default the group that contains the library items
    * @protected
    */
-  protected async addItem(data: {[key:string]:string}, groupName?:string) : Promise<void> {
+  protected async addPublication(data: {[key:string]:string}, groupName?:string) : Promise<void> {
     groupName = groupName || this.groupName;
-    console.log(`Adding item '${data.title}' ...`);
     await this.run(`
       const item = bookends.PublicationItem(${JSON.stringify(data)});
       libraryWindow.publicationItems.push(item);
@@ -285,12 +297,53 @@ export class Library implements Zotero.Library {
   }
 
   /**
+   * Updates a publication item
+   * @param {number} id
+   * @param {object} data
+   * @protected
+   */
+  protected async updatePublication(id: number, data: {[key:string]:string}) : Promise<void> {
+    try {
+      await this.run(`
+        const item = libraryWindow.publicationItems.byId("${id}");
+        for (let [key, value] of Object.entries(args[0])) {
+          item.setProperty(key, value);
+        }
+      `, [data]);
+    } catch(e) {
+      if (e.message.includes("-1728")) {
+        throw new Error(`Cannot update non-existing publication item with id ${id}`);
+      }
+      throw e;
+    }
+  }
+
+  /**
+   * Deletes a publication item
+   * @param id
+   * @protected
+   */
+  protected async removePublication(id: number) : Promise<void> {
+    try {
+      await this.run(`bookends.delete(libraryWindow.publicationItems.byId(${id})`);
+    } catch(e) {
+      if (e.message.includes("-1728")) {
+        throw new Error(`Cannot delete non-existing publication item with id ${id}`);
+      }
+      throw e;
+    }
+  }
+
+  /**
    * Adds or updates a Zotero item object
    * @param {Zotero.Item.Any} item
    */
   public async add(item: Zotero.Item.Any | any): Promise<void> {
     // fast-forward in the case of a previous aborted sync
     if (this.fastForwardTo > 0 && this.lastIndex < this.fastForwardTo) {
+      if (this.lastIndex === 0) {
+        this.debug(`Fast-forwarding, skipping previously synchronized items...`);
+      }
       this.lastIndex++;
       return;
     }
@@ -304,7 +357,7 @@ export class Library implements Zotero.Library {
         let error: null | string = null;
         while(tries++ < this.maxTries) {
           try {
-            const storedData = await this.getItemByCitekey(citekey)
+            const storedData = await this.getPublicationByCitekey(citekey)
             const data = this.zoteroToBookends(item, citekey);
             if (storedData) {
               const changedProperties = Object.keys(data).filter( key => data[key] !== storedData[key]);
@@ -312,10 +365,12 @@ export class Library implements Zotero.Library {
                 // update if item has changed
                 const changedData: {[key: string]: string} = {};
                 changedProperties.forEach(key => changedData[key] = data[key]);
-                await this.updateItem(Number(storedData.id), changedData);
+                this.debug(`Updating item '${data.title}', properties ${Object.keys(changedData).join(",")}`);
+                await this.updatePublication(Number(storedData.id), changedData);
               }
             } else {
-              await this.addItem(data);
+              this.debug(`Adding item '${data.title}' ...`);
+              await this.addPublication(data);
             }
             // success!
             error = null;
@@ -346,11 +401,21 @@ export class Library implements Zotero.Library {
   }
 
   /**
-   * Removes an Zotero item object
+   * Removes Zotero item objects
    * @param {string[]} keys
    */
   public async remove(keys: string[]): Promise<void> {
-    // to do
+    if (this.isNew) {
+      // nothing to delete
+      return;
+    }
+    for (let key of keys) {
+      const item = await this.getPublicationByCitekey(this.generateCitekey({key}));
+      if (item) {
+        this.debug(`Deleting '${item.title}' ...`);
+        await this.removePublication(Number(item.id));
+      }
+    }
   }
 
   /**
@@ -372,7 +437,7 @@ export class Library implements Zotero.Library {
    * @param {Number} version
    */
   public async save(name: string, version: number): Promise<void> {
-    this.name = name || this.name || "User Library";
+    this.name = name || "User Library";
     this.version = version;
     this.lastIndex = 0;
     await this.saveMetadata();

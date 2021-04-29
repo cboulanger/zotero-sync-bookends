@@ -107,7 +107,7 @@ const fields_toLocal =
       return bookendsTypes.indexOf(localType);
     }
   },
-  accessDate: 'user20',
+  accessDate: false,
   abstractNote: 'abstract',
   authors: {
     translateName: function (data) {
@@ -124,7 +124,7 @@ const fields_toLocal =
   attachments: 'attachments',
   blogTitle: 'journal',
   bookTitle: 'volume',
-  collections: 'user19',
+  collections: "user20",
   conferenceName: 'journal',
   callNumber: 'user5',
   date: 'publicationDateString',

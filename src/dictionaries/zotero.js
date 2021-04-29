@@ -328,8 +328,8 @@ const types_toGlobal = {
 /**
  * Map local to global fields
  */
-const fields_toGlobal =
-{ key: {
+const fields_toGlobal ={
+  key: {
     translateName : function(data) {
       return false;
     },
@@ -355,9 +355,8 @@ const fields_toGlobal =
   accessDate: 'accessDate',
   abstractNote: 'abstractNote',
   collections: {
-    default: () => "",
     translateName: () => 'collections',
-    translateContent: data => Array.isArray(data)? data.join(",") : ""
+    translateContent: data => data.collections.join(",")
   },
   creators: {
     translateName: function() {return false;}, // field name depends on content
