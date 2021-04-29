@@ -14,7 +14,9 @@ The library allows, among other things, to use Bookends super-fast search to do 
 cross-library lookup of reference items, which is not possible with Zotero currently.
 
 ## Issues
- - Access to Bookends via OSA/JXA is slow. It can take a couple of hours to synchronize large libraries.
+ - Access to Bookends via OSA/JXA is slow. The initial synchronization can take a couple of hours for large libraries.
+   After that, especially if you do it often, syncing should go fast since only the data that has changed is 
+   synchronized. 
  - The current implementation works well enough for my use case but of course isn't perfect. Please
    let me know if it works for you and open issues / pull requests if it doesn't.
  - Bookends crashes quite a bit - see below how to recover from the crash without having to restart the 
