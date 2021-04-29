@@ -118,11 +118,11 @@ export class Library implements Zotero.Library {
     if (this.groupName) {
       const {name, data} = this.parseGroupName(this.groupName);
       this.name = name;
-      if (name === this.synchronizingMessage) {
+      this.version = data.version;
+      if (this.version === 0) {
         // a case of an aborted initial sync
         this.isNew = true;
       }
-      this.version = data.version;
       this.fastForwardTo = data.lastIndex || 0;
     } else {
       this.isNew = true;
