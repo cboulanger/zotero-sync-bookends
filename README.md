@@ -62,6 +62,23 @@ npm install
 npm test
 ```
 
+## Creating an executable / MacOS app
+
+You can create an standalone executable file which can be run on the command line or packaged into 
+a application by executing `npm run pkg`. The executable will be written to the `bin` directory.
+
+> Please note that if you have set environment variables in a `.env` file, the package will include 
+> include them and will be visible as plain text in the source! Please remove the file if you intend 
+> to distribute the built executable. The values will be used as defaults, which is convenient for 
+> personal use of the executable. 
+
+The usage of the executable is
+
+```bash
+zotero-sync-bookends <Zotero API key> "Bookends library file name (not the path!)"
+```
+
+
 ## Resources
 - [JXA Release notes](https://developer.apple.com/library/archive/releasenotes/InterapplicationCommunication/RN-JavaScriptForAutomation/Articles/OSX10-10.html#//apple_ref/doc/uid/TP40014508-CH109-SW1)
 - [JXA debugging](https://developer.apple.com/library/archive/releasenotes/InterapplicationCommunication/RN-JavaScriptForAutomation/Articles/OSX10-11.html#//apple_ref/doc/uid/TP40014508-CH110-SW1) 

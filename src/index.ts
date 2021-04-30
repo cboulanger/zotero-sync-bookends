@@ -70,12 +70,11 @@ export class Library implements Zotero.Library {
   }
 
   /**
-   * Output additional information on the console if the environment variable
-   * ZOTERO_SYNC_DEBUG is set
+   * Output additional information to the console if the `verbose` property is true
    * @param {string} msg
    * @private
    */
-  private debug(msg:string) {
+  private logVerbose(msg:string) {
     if (Store.verbose) {
       process.stdout.clearLine();
       process.stdout.cursorTo(0);
@@ -342,7 +341,7 @@ export class Library implements Zotero.Library {
     // fast-forward in the case of a previous aborted sync
     if (this.fastForwardTo > 0 && this.lastIndex < this.fastForwardTo) {
       if (this.lastIndex === 0) {
-        this.debug(`Fast-forwarding, skipping previously synchronized items...`);
+        this.logVerbose(`Fast-forwarding, skipping previously synchronized items...`);
       }
       this.lastIndex++;
       return;
@@ -365,11 +364,11 @@ export class Library implements Zotero.Library {
                 // update if item has changed
                 const changedData: {[key: string]: string} = {};
                 changedProperties.forEach(key => changedData[key] = data[key]);
-                this.debug(`Updating item '${data.title}', properties ${Object.keys(changedData).join(",")}`);
+                this.logVerbose(`Updating item '${data.title}', properties ${Object.keys(changedData).join(",")}`);
                 await this.updatePublication(Number(storedData.id), changedData);
               }
             } else {
-              this.debug(`Adding item '${data.title}' ...`);
+              this.logVerbose(`Adding item '${data.title}' ...`);
               await this.addPublication(data);
             }
             // success!
@@ -412,7 +411,7 @@ export class Library implements Zotero.Library {
     for (let key of keys) {
       const item = await this.getPublicationByCitekey(this.generateCitekey({key}));
       if (item) {
-        this.debug(`Deleting '${item.title}' ...`);
+        this.logVerbose(`Deleting '${item.title}' ...`);
         await this.removePublication(Number(item.id));
       }
     }

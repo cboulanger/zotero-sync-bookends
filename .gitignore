@@ -4,4 +4,8 @@
 src/index.d.ts
 index.js
 test.js
+test.d.ts
+run.js
 !.env.dist
+bin/
+.pkg-cache/

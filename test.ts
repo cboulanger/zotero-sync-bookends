@@ -7,15 +7,38 @@ const Gauge = require('gauge');
 
 (async () => {
     // config
-    dotenv.config();
-    const {
-        ZOTERO_API_KEY,
-        BOOKENDS_DB_NAME
-    } = process.env as {[key : string]: string};
+    let zotero_api_key;
+    let bookends_db_name;
+    let argv = process.argv.slice(1);
+
+    // if run from an executable created with `npm run pkg`
+    if (process.pkg) {
+        argv.shift();
+    }
+
+    const help = ["help", "-h", "--help"].includes(argv[0]);
+
+    if (!help) {
+        [zotero_api_key, bookends_db_name] = argv;
+        if (!zotero_api_key || !bookends_db_name) {
+            dotenv.config();
+            const {
+                ZOTERO_API_KEY,
+                BOOKENDS_DB_NAME
+            } = process.env as {[key : string]: string};
+            zotero_api_key = ZOTERO_API_KEY;
+            bookends_db_name = BOOKENDS_DB_NAME;
+        }
+    }
+
+    if (help || !zotero_api_key || !bookends_db_name) {
+        console.info(`Usage: zotero-sync-bookends <Zotero API key> "Bookends library file name"`);
+        process.exit(help ? 0 : 1);
+    }
 
     // initialize the sync engine
     const syncEngine = new Sync;
-    await syncEngine.login(ZOTERO_API_KEY);
+    await syncEngine.login(zotero_api_key);
 
     Store.verbose = true;
 
@@ -48,7 +71,7 @@ const Gauge = require('gauge');
     });
 
     // synchronize with the couchbase store
-    const store = new Store(BOOKENDS_DB_NAME);
+    const store = new Store(bookends_db_name);
     await syncEngine.sync(store);
 })().catch(err => {
     console.log(err)
