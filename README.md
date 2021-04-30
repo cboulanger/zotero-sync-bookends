@@ -64,8 +64,8 @@ npm test
 
 ## Creating an executable / MacOS app
 
-You can create an standalone executable file which can be run on the command line or packaged into 
-a application by executing `npm run pkg`. The executable will be written to the `bin` directory.
+You can create a standalone executable file which can be run on the command line or packaged into 
+an application by executing `npm run pkg`. The executable will be written to the `bin` directory.
 
 > Please note that if you have set environment variables in a `.env` file, the package will include 
 > include them and will be visible as plain text in the source! Please remove the file if you intend 
