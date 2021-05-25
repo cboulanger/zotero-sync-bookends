@@ -324,7 +324,7 @@ export class Library implements Zotero.Library {
    */
   protected async removePublication(id: number) : Promise<void> {
     try {
-      await this.run(`bookends.delete(libraryWindow.publicationItems.byId(${id})`);
+      await this.run(`bookends.delete(libraryWindow.publicationItems.byId(${id}))`);
     } catch(e) {
       if (e.message.includes("-1728")) {
         throw new Error(`Cannot delete non-existing publication item with id ${id}`);
